@@ -35,4 +35,5 @@ def update_data():
     print("data received: " + str(values))
     return "success",201
 if __name__ == "__main__":
-    app.run(host='localhost', port=5001)
+    #app.run(host='localhost', port=5001)
+    app.run(host='172.31.80.177', port=5001)

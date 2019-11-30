@@ -43,17 +43,17 @@ def process_rdd(time, rdd):
         # get the top 10 hashtags from the table using SQL and print them
         hashtag_counts_df = sql_context.sql("select hashtag, hashtag_count from hashtags order by hashtag_count desc limit 10")
         print('count')
-        
         top_tags = [str(t.hashtag) for t in hashtag_counts_df.select("hashtag").collect()]
         tags_count = [p.hashtag_count for p in hashtag_counts_df.select("hashtag_count").collect()]
         print(top_tags)
         print(tags_count)
         # call this method to prepare top 10 hashtags DF and send them
         send_df_to_dashboard(hashtag_counts_df)
+    except (ValueError):
+        print('Caught ValueError')
     except:
         e = sys.exc_info()[0]
         print("Error: %s" % e)
-        
 def process_string(time,rdd):
     print("----------- %s -----------" % str(time))
     try:
@@ -66,7 +66,6 @@ def process_string(time,rdd):
 #        hashtags_df = sql_context.createDataFrame(row_rdd)
         print("createddataframe")
         print(format(frame))
-        
         # Register the dataframe as table
 #        hashtags_df.registerTempTable("hashtags")
         # get the top 10 hashtags from the table using SQL and print them
@@ -85,10 +84,11 @@ def send_df_to_dashboard(df):
     # extract the counts from dataframe and convert them into array
     tags_count = [p.hashtag_count for p in df.select("hashtag_count").collect()]
     # initialize and send the data through REST API
-    url = 'http://localhost:5001/updateData'
+    #url = 'http://localhost:5001/updateData'
+    url = 'http://172.31.80.177:5001/updateData'
     request_data = {'label': str(top_tags), 'data': str(tags_count)}
     response = requests.post(url, data=request_data)
-    
+
 # create spark configuration
 conf = SparkConf().setMaster("local[2]").setAppName("TwitterStreamApp")
 # create spark context with the above configuration
