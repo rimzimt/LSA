@@ -18,10 +18,12 @@ import sys
 import requests
 import requests_oauthlib
 import json
+import argparse
 from textblob import TextBlob
 import csv
 
 fileName= '/Users/rimzimthube/MS/LSA/Project/SavedCSV.csv'
+trend_var = ''
 
 # Replace the values below with yours
 access_token = '1189013439777144834-gHdx56y8wdFEXx6on8RvqKFd7jZWgr'
@@ -49,11 +51,12 @@ def GetTweetSentiment(tweet_text):
     return sentiment
 
 def get_tweets():
+    global trend_var
     url = 'https://stream.twitter.com/1.1/statuses/filter.json'
     # query_data = [('language', 'en'), ('tweet_mode','extended'), \
             # ('locations', '-130,-20,100,50'),('track','trump')]
     query_data = [('language', 'en'), ('tweet_mode','extended'), \
-            ('track','PriyankaReddy')]
+            ('track', trend_var)]
     query_url = url + '?' + '&'.join([str(t[0]) + '=' + \
         str(t[1]) for t in query_data])
     response = requests.get(query_url, auth=my_auth, stream=True)
@@ -117,7 +120,25 @@ def send_tweets_to_spark(http_resp, tcp_connection):
             e = sys.exc_info()[0]
             print("Error: %s" % e)
 
+
+def argsStuff():
+    parser = argparse.ArgumentParser(description = "Twitter sentiment analysis")
+    parser.add_argument("-V", "--version", help="show program version", \
+            action="store_true")
+    parser.add_argument("-w", "--word", help="hashtag for sentiment analysis",\
+            type=str)
+    args = parser.parse_args()
+    if args.version:
+        print("V1.1")
+        exit(0)
+    if not args.word:
+        print("The following arguments are required: -w/--word")
+        exit(1)
+    return args.word
+
 def main():
+    global trend_var
+    trend_var = argsStuff()
     TCP_IP = "localhost"
     TCP_PORT = 9999
     conn = None

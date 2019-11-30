@@ -18,6 +18,10 @@ from pyspark.streaming import StreamingContext
 from pyspark.sql import Row,SQLContext
 import sys
 import requests
+import argparse
+
+# ip="localhost"
+ip="172.31.80.177"
 
 def aggregate_tags_count(new_values, total_sum):
     return sum(new_values) + (total_sum or 0)
@@ -85,11 +89,27 @@ def send_df_to_dashboard(df):
     tags_count = [p.hashtag_count for p in df.select("hashtag_count").collect()]
     # initialize and send the data through REST API
     #url = 'http://localhost:5001/updateData'
-    url = 'http://172.31.80.177:5001/updateData'
+    url = 'http://'+ip+':5001/updateData'
     request_data = {'label': str(top_tags), 'data': str(tags_count)}
     response = requests.post(url, data=request_data)
 
+def argsStuff():
+    parser = argparse.ArgumentParser(description = "Fetch tweets")
+    parser.add_argument("-V", "--version", help="show program version", \
+            action="store_true")
+    parser.add_argument("-i", "--ip", help="ip address to publish chart",\
+            type=str)
+    args = parser.parse_args()
+    if args.version:
+        print("V1.1")
+        exit(0)
+    if not args.ip:
+        print("The following arguments are required: -i/--ip")
+        exit(1)
+    return args.ip
+
 # create spark configuration
+# ip=argsStuff()
 conf = SparkConf().setMaster("local[2]").setAppName("TwitterStreamApp")
 # create spark context with the above configuration
 sc = SparkContext(conf=conf)
