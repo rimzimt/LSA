@@ -21,6 +21,15 @@ import json
 import argparse
 from textblob import TextBlob
 import csv
+import re
+from nltk.tokenize import word_tokenize
+from nltk.corpus import stopwords 
+from string import punctuation 
+from pymongo import MongoClient
+import datetime
+
+
+
 
 fileName= '/Users/rimzimthube/MS/LSA/Project/SavedCSV.csv'
 trend_var = ''
@@ -30,10 +39,25 @@ access_token = '1189013439777144834-gHdx56y8wdFEXx6on8RvqKFd7jZWgr'
 access_secret = 'Xr8IgYAZwbcwOuKOkCogcahAjpZPGz1zOzcEO27cbCqr2'
 consumer_key = 'LSrCCGTL3XXvVxUaeMJ1P9kvQ'
 consumer_secret = 'dVvm1uFcePm0o0M6fxJg3vxqouoB3o0HOOWlzwhElleH1dOpGj'
-my_auth = requests_oauthlib.OAuth1(consumer_key, consumer_secret, \
-        access_token, access_secret)
+mongoclient = MongoClient('mongodb+srv://rimzimt:Rimzim!123@cluster0-x8z3i.mongodb.net/test?retryWrites=true&w=majority')
+my_auth = requests_oauthlib.OAuth1(consumer_key, consumer_secret,access_token, access_secret)
+
+def processText(text):
+    _stopwords = set(stopwords.words('english') + list(punctuation) + ['AT_USER','URL'])
+
+
+    tweet = text.lower() # convert text to lower-case
+    tweet = re.sub('((www\.[^\s]+)|(https?://[^\s]+))', 'URL', tweet) # remove URLs
+    tweet = re.sub('@[^\s]+', 'AT_USER', tweet) # remove usernames
+    tweet = re.sub(r'#([^\s]+)', r'\1', tweet) # remove the # in #hashtag
+    tweet = word_tokenize(tweet) # remove repeated characters (helloooooooo into hello)
+    tweet=[word for word in tweet if word not in _stopwords]
+    
+    tweet=' '.join(tweet)
+    return tweet
 
 def GetTweetSentiment(tweet_text):
+    processText(tweet_text)
     analysis = TextBlob(tweet_text)
     print(analysis.sentiment)
     if analysis.sentiment[0]>0:
@@ -111,7 +135,9 @@ def send_tweets_to_spark(http_resp, tcp_connection):
             # print("Tweet Text: " + tweet_text)
             # print ("------------------------------------------")
             sentiment=GetTweetSentiment(tweet_text)
-            tcp_connection.send((sentiment+'\n').encode())
+      	    mongoTweet={'tweet':tweet_text,'sentiment':sentiment,'hashtag':'love','DateTime':datetime.datetime.now()}
+            tweetCollection.insert_one(mongoTweet)          
+	    tcp_connection.send((sentiment+'\n').encode())
             print("Tweet Sent!")
         except(ConnectionResetError, BrokenPipeError):
             print("Client disconnected ..")
@@ -141,6 +167,9 @@ def main():
     trend_var = argsStuff()
     TCP_IP = "localhost"
     TCP_PORT = 9999
+    twitterdb=mongoclient['twitterdb']
+    tweetCollection=twitterdb['tweetCollection']
+
     conn = None
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.bind((TCP_IP, TCP_PORT))
