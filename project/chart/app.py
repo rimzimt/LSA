@@ -9,9 +9,27 @@ Created on Mon Nov 11 12:52:46 2019
 from flask import Flask,jsonify,request
 from flask import render_template
 import ast
+import argparse
 app = Flask(__name__)
 labels = []
 values = []
+ip='localhost'
+
+def argsStuff():
+    parser = argparse.ArgumentParser(description = "Publish sentiments")
+    parser.add_argument("-V", "--version", help="show program version", \
+            action="store_true")
+    parser.add_argument("-i", "--ip", help="ip address to publish chart",\
+            type=str)
+    args = parser.parse_args()
+    if args.version:
+        print("V1.1")
+        exit(0)
+    if not args.ip:
+        print("The following arguments are required: -i/--ip")
+        exit(1)
+    return args.ip
+
 @app.route("/")
 def get_chart_page():
     global labels,values
@@ -35,4 +53,6 @@ def update_data():
     print("data received: " + str(values))
     return "success",201
 if __name__ == "__main__":
-    app.run(host='localhost', port=5001)
+    #app.run(host='localhost', port=5001)
+    ip=argsStuff()
+    app.run(host=ip, port=5001)

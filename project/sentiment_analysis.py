@@ -18,6 +18,10 @@ from pyspark.streaming import StreamingContext
 from pyspark.sql import Row,SQLContext
 import sys
 import requests
+import argparse
+
+# ip="localhost"
+ip="172.31.80.177"
 
 def aggregate_tags_count(new_values, total_sum):
     return sum(new_values) + (total_sum or 0)
@@ -43,17 +47,17 @@ def process_rdd(time, rdd):
         # get the top 10 hashtags from the table using SQL and print them
         hashtag_counts_df = sql_context.sql("select hashtag, hashtag_count from hashtags order by hashtag_count desc limit 10")
         print('count')
-        
         top_tags = [str(t.hashtag) for t in hashtag_counts_df.select("hashtag").collect()]
         tags_count = [p.hashtag_count for p in hashtag_counts_df.select("hashtag_count").collect()]
         print(top_tags)
         print(tags_count)
         # call this method to prepare top 10 hashtags DF and send them
         send_df_to_dashboard(hashtag_counts_df)
+    except (ValueError):
+        print('Caught ValueError')
     except:
         e = sys.exc_info()[0]
         print("Error: %s" % e)
-        
 def process_string(time,rdd):
     print("----------- %s -----------" % str(time))
     try:
@@ -66,7 +70,6 @@ def process_string(time,rdd):
 #        hashtags_df = sql_context.createDataFrame(row_rdd)
         print("createddataframe")
         print(format(frame))
-        
         # Register the dataframe as table
 #        hashtags_df.registerTempTable("hashtags")
         # get the top 10 hashtags from the table using SQL and print them
@@ -85,11 +88,28 @@ def send_df_to_dashboard(df):
     # extract the counts from dataframe and convert them into array
     tags_count = [p.hashtag_count for p in df.select("hashtag_count").collect()]
     # initialize and send the data through REST API
-    url = 'http://localhost:5001/updateData'
+    #url = 'http://localhost:5001/updateData'
+    url = 'http://'+ip+':5001/updateData'
     request_data = {'label': str(top_tags), 'data': str(tags_count)}
     response = requests.post(url, data=request_data)
-    
+
+def argsStuff():
+    parser = argparse.ArgumentParser(description = "Fetch tweets")
+    parser.add_argument("-V", "--version", help="show program version", \
+            action="store_true")
+    parser.add_argument("-i", "--ip", help="ip address to publish chart",\
+            type=str)
+    args = parser.parse_args()
+    if args.version:
+        print("V1.1")
+        exit(0)
+    if not args.ip:
+        print("The following arguments are required: -i/--ip")
+        exit(1)
+    return args.ip
+
 # create spark configuration
+# ip=argsStuff()
 conf = SparkConf().setMaster("local[2]").setAppName("TwitterStreamApp")
 # create spark context with the above configuration
 sc = SparkContext(conf=conf)
