@@ -45,13 +45,43 @@ my_auth = requests_oauthlib.OAuth1(consumer_key, consumer_secret,access_token, a
 
 def processText(text):
     _stopwords = set(stopwords.words('english') + list(punctuation) + ['AT_USER','URL'])
+    emoji_pattern = reg_expr.compile("["
+         u"\U0001F600-\U0001F64F"  # emoticons
+         u"\U0001F300-\U0001F5FF"  # symbols & pictographs
+         u"\U0001F680-\U0001F6FF"  # transport & map symbols
+         u"\U0001F1E0-\U0001F1FF"  # flags (iOS)
+         u"\U00002702-\U000027B0"
+         u"\U000024C2-\U0001F251"
+         "]+", flags=reg_expr.UNICODE)
+
+    emoticons_happy = set([
+    ':-)', ':)', ';)', ':o)', ':]', ':3', ':c)', ':>', '=]', '8)', '=)', ':}',
+    ':^)', ':-D', ':D', '8-D', '8D', 'x-D', 'xD', 'X-D', 'XD', '=-D', '=D',
+    '=-3', '=3', ':-))', ":'-)", ":')", ':*', ':^*', '>:P', ':-P', ':P', 'X-P',
+    'x-p', 'xp', 'XP', ':-p', ':p', '=p', ':-b', ':b', '>:)', '>;)', '>:-)',
+    '<3'
+    ])
+
+    emoticons_sad = set([
+    ':L', ':-/', '>:/', ':S', '>:[', ':@', ':-(', ':[', ':-||', '=L', ':<',
+    ':-[', ':-<', '=\\', '=/', '>:(', ':(', '>.<', ":'-(", ":'(", ':\\', ':-c',
+    ':c', ':{', '>:\\', ';('
+    ])
+
+    emoticons = emoticons_happy.union(emoticons_sad)
 
     tweet = text.lower() # convert text to lower-case
     tweet = re.sub('((www\.[^\s]+)|(https?://[^\s]+))', 'URL', tweet) # remove URLs
     tweet = re.sub('@[^\s]+', 'AT_USER', tweet) # remove usernames
     tweet = re.sub(r'#([^\s]+)', r'\1', tweet) # remove the # in #hashtag
+
+    tweet = reg_expr.sub(r':', '', tweet) # preprocessing the colon symbol left remain after 
+    tweet = reg_expr.sub(r'‚Ä¶', '', tweet) #removing mentions
+    tweet = reg_expr.sub(r'[^\x00-\x7F]+',' ', tweet) ##replace consecutive non-ASCII characters with a space
+    tweet = emoji_pattern.sub(r'', tweet)
+
     tweet = word_tokenize(tweet) # remove repeated characters (helloooooooo into hello)
-    tweet=[word for word in tweet if word not in _stopwords]
+    tweet=[word for word in tweet if word not in _stopwords and w not in emoticons]
 
     tweet=' '.join(tweet)
     return tweet
