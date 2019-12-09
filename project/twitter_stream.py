@@ -27,10 +27,11 @@ from nltk.corpus import stopwords
 from string import punctuation 
 from pymongo import MongoClient
 import datetime
+import nltk
 
 
-
-
+twitterdb=None
+tweetCollection=None
 fileName= '/Users/rimzimthube/MS/LSA/Project/SavedCSV.csv'
 trend_var = ''
 
@@ -45,19 +46,18 @@ my_auth = requests_oauthlib.OAuth1(consumer_key, consumer_secret,access_token, a
 def processText(text):
     _stopwords = set(stopwords.words('english') + list(punctuation) + ['AT_USER','URL'])
 
-
     tweet = text.lower() # convert text to lower-case
     tweet = re.sub('((www\.[^\s]+)|(https?://[^\s]+))', 'URL', tweet) # remove URLs
     tweet = re.sub('@[^\s]+', 'AT_USER', tweet) # remove usernames
     tweet = re.sub(r'#([^\s]+)', r'\1', tweet) # remove the # in #hashtag
     tweet = word_tokenize(tweet) # remove repeated characters (helloooooooo into hello)
     tweet=[word for word in tweet if word not in _stopwords]
-    
+
     tweet=' '.join(tweet)
     return tweet
 
 def GetTweetSentiment(tweet_text):
-    processText(tweet_text)
+    tweet_text = processText(tweet_text)
     analysis = TextBlob(tweet_text)
     print(analysis.sentiment)
     if analysis.sentiment[0]>0:
@@ -88,6 +88,7 @@ def get_tweets():
     return response
 
 def send_tweets_to_spark(http_resp, tcp_connection):
+    global tweetCollection
     for line in http_resp.iter_lines():
         try:
             full_tweet = json.loads(line)
@@ -135,10 +136,15 @@ def send_tweets_to_spark(http_resp, tcp_connection):
             # print("Tweet Text: " + tweet_text)
             # print ("------------------------------------------")
             sentiment=GetTweetSentiment(tweet_text)
-      	    mongoTweet={'tweet':tweet_text,'sentiment':sentiment,'hashtag':'love','DateTime':datetime.datetime.now()}
-            tweetCollection.insert_one(mongoTweet)          
-	    tcp_connection.send((sentiment+'\n').encode())
+            mongoTweet={'tweet':tweet_text,'sentiment':sentiment,'hashtag':trend_var,'DateTime':datetime.datetime.now()}
+            tweetCollection.insert_one(mongoTweet)
+            tcp_connection.send((sentiment+'\n').encode())
             print("Tweet Sent!")
+        except (LookupError, NameError):
+            e = sys.exc_info()[0]
+            print(tweet_text)
+            print("Error: %s" % e)
+            exit(0)
         except(ConnectionResetError, BrokenPipeError):
             print("Client disconnected ..")
             return
@@ -164,11 +170,14 @@ def argsStuff():
 
 def main():
     global trend_var
+    global tweetCollection
+    global twitterdb
+    # nltk.download('stopwords')
     trend_var = argsStuff()
     TCP_IP = "localhost"
     TCP_PORT = 9999
     twitterdb=mongoclient['twitterdb']
-    tweetCollection=twitterdb['tweetCollection']
+    tweetCollection=twitterdb['tweetcollection']
 
     conn = None
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
