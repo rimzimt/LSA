@@ -23,7 +23,7 @@ import argparse
 # ip="localhost"
 ip="172.31.80.177"
 
-def aggregate_tags_count(new_values, total_sum):
+def aggregate_sentiment_count(new_values, total_sum):
     return sum(new_values) + (total_sum or 0)
 
 def get_sql_context_instance(spark_context):
@@ -36,64 +36,82 @@ def process_rdd(time, rdd):
         # Get spark sql singleton context from the current context
         sql_context = get_sql_context_instance(rdd.context)
         # convert the RDD to Row RDD
-        print('sql context')
+#        print('sql context')
+        
         row_rdd = rdd.map(lambda w: Row(hashtag=w[0], hashtag_count=w[1]))
-        print('row rdd')
-        # create a DF from the Row RDD
-        hashtags_df = sql_context.createDataFrame(row_rdd)
-        # Register the dataframe as table
-        hashtags_df.registerTempTable("hashtags")
-        print('hashtag df')
-        # get the top 10 hashtags from the table using SQL and print them
-        hashtag_counts_df = sql_context.sql("select hashtag, hashtag_count from hashtags order by hashtag_count desc limit 10")
+#        print('row rdd')
+        
+        # create a df from row rdd
+        sentiment_df = sql_context.createDataFrame(row_rdd)
+        
+        # Register df as table
+        sentiment_df.registerTempTable("hashtags")
+#        print('hashtag df')
+        
+        # get the sentiment count
+        sentiment_counts_df = sql_context.sql("select hashtag, hashtag_count from hashtags order by hashtag_count desc limit 10")
         print('count')
-        top_tags = [str(t.hashtag) for t in hashtag_counts_df.select("hashtag").collect()]
-        tags_count = [p.hashtag_count for p in hashtag_counts_df.select("hashtag_count").collect()]
-        print(top_tags)
-        print(tags_count)
-        # call this method to prepare top 10 hashtags DF and send them
-        send_df_to_dashboard(hashtag_counts_df)
+        
+        top_sentiment = [str(t.hashtag) for t in sentiment_counts_df.select("hashtag").collect()]
+        sentiment_count = [p.hashtag_count for p in sentiment_counts_df.select("hashtag_count").collect()]
+        
+        print(top_sentiment)
+        print(sentiment_count)
+        
+        # send data to chart 
+        send_df_to_dashboard(sentiment_counts_df)
+        
     except (ValueError):
-        print('Caught ValueError')
+        print('')
     except:
         e = sys.exc_info()[0]
         print("Error: %s" % e)
+        
 def process_string(time,rdd):
     print("----------- %s -----------" % str(time))
     try:
-        # Get spark sql singleton context from the current context
         sql_context = get_sql_context_instance(rdd.context)
-        # convert the RDD to Row RDD
+        
         row_rdd = rdd.map(lambda w: Row(Tweet=w))
-        # create a DF from the Row RDD
+        
         frame=row_rdd.toDF()
-#        hashtags_df = sql_context.createDataFrame(row_rdd)
+        
+#        sentiment_df = sql_context.createDataFrame(row_rdd)
         print("createddataframe")
         print(format(frame))
+        
         # Register the dataframe as table
-#        hashtags_df.registerTempTable("hashtags")
-        # get the top 10 hashtags from the table using SQL and print them
-#        hashtag_counts_df = sql_context.sql("select Tweet from hashtags")
-#        hashtag_counts_df.show()
-        # call this method to prepare top 10 hashtags DF and send them
-        send_df_to_dashboard(hashtag_counts_df)
+#        sentiment_df.registerTempTable("hashtags")
+#        sentiment_counts_df = sql_context.sql("select Tweet from hashtags")
+#        sentiment_counts_df.show()
+        
+        send_df_to_dashboard(sentiment_counts_df)
     except:
         e = sys.exc_info()[0]
         print("Error: %s" % e)
 
 
 def send_df_to_dashboard(df):
-    # extract the hashtags from dataframe and convert them into array
-    top_tags = [str(t.hashtag) for t in df.select("hashtag").collect()]
+    
+    
+    # extract the sentiment from dataframe and convert them into array
+    top_sentiment = [str(t.hashtag) for t in df.select("hashtag").collect()]
+    
     # extract the counts from dataframe and convert them into array
-    tags_count = [p.hashtag_count for p in df.select("hashtag_count").collect()]
+    sentiment_count = [p.hashtag_count for p in df.select("hashtag_count").collect()]
+    
     # initialize and send the data through REST API
     #url = 'http://localhost:5001/updateData'
     url = 'http://'+ip+':5001/updateData'
-    request_data = {'label': str(top_tags), 'data': str(tags_count)}
-    response = requests.post(url, data=request_data)
+    request_data = {'label': str(top_sentiment), 'data': str(sentiment_count)}
+    
+    try:
+        response = requests.post(url, data=request_data)
+    except (requests.exceptions.ConnectionError):
+        print()
 
 def argsStuff():
+    
     parser = argparse.ArgumentParser(description = "Fetch tweets")
     parser.add_argument("-V", "--version", help="show program version", \
             action="store_true")
@@ -111,19 +129,22 @@ def argsStuff():
 # create spark configuration
 # ip=argsStuff()
 conf = SparkConf().setMaster("local[2]").setAppName("TwitterStreamApp")
-# create spark context with the above configuration
+
 sc = SparkContext(conf=conf)
+
 sc.setLogLevel("ERROR")
-# create the Streaming Context from the above spark context with interval size 2 seconds
+
 ssc = StreamingContext(sc, 3)
-# setting a checkpoint to allow RDD recovery
+
 ssc.checkpoint("checkpoint_TwitterApp")
-# read data from port 9009
+
+# read data from port 9999
 dataStream = ssc.socketTextStream("localhost",9999)
 print("datastream")
 #dataStream.pprint()
 #dataStream.saveAsTextFiles('MS/LSA/Project/Test/test123')
 ## split each tweet into words
+
 words = dataStream.flatMap(lambda line: line.split("\n"))
 #words.saveAsTextFiles('MS/LSA/Project/Test/test123')
 #words.foreachRDD(process_string)
@@ -131,12 +152,12 @@ words = dataStream.flatMap(lambda line: line.split("\n"))
 hashtags = words.map(lambda x: (x, 1))
 #hashtags.pprint()
 ## adding the count of each hashtag to its last count
-tags_totals = hashtags.updateStateByKey(aggregate_tags_count)
+tags_totals = hashtags.updateStateByKey(aggregate_sentiment_count)
 #tags_totals.pprint()
 ## do processing for each RDD generated in each interval
-print('before rdd')
+#print('before rdd')
 tags_totals.foreachRDD(process_rdd)
-print('after rdd')
+#print('after rdd')
 # start the streaming computation
 ssc.start()
 # wait for the streaming to finish
