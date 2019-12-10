@@ -45,14 +45,14 @@ my_auth = requests_oauthlib.OAuth1(consumer_key, consumer_secret,access_token, a
 
 def processText(text):
     _stopwords = set(stopwords.words('english') + list(punctuation) + ['AT_USER','URL'])
-    emoji_pattern = reg_expr.compile("["
+    emoji_pattern = re.compile("["
          u"\U0001F600-\U0001F64F"  # emoticons
          u"\U0001F300-\U0001F5FF"  # symbols & pictographs
          u"\U0001F680-\U0001F6FF"  # transport & map symbols
          u"\U0001F1E0-\U0001F1FF"  # flags (iOS)
          u"\U00002702-\U000027B0"
          u"\U000024C2-\U0001F251"
-         "]+", flags=reg_expr.UNICODE)
+         "]+", flags=re.UNICODE)
 
     emoticons_happy = set([
     ':-)', ':)', ';)', ':o)', ':]', ':3', ':c)', ':>', '=]', '8)', '=)', ':}',
@@ -75,13 +75,13 @@ def processText(text):
     tweet = re.sub('@[^\s]+', 'AT_USER', tweet) # remove usernames
     tweet = re.sub(r'#([^\s]+)', r'\1', tweet) # remove the # in #hashtag
 
-    tweet = reg_expr.sub(r':', '', tweet) # preprocessing the colon symbol left remain after 
-    tweet = reg_expr.sub(r'‚Ä¶', '', tweet) #removing mentions
-    tweet = reg_expr.sub(r'[^\x00-\x7F]+',' ', tweet) ##replace consecutive non-ASCII characters with a space
+    tweet = re.sub(r':', '', tweet) # preprocessing the colon symbol left remain after 
+    tweet = re.sub(r'‚Ä¶', '', tweet) #removing mentions
+    tweet = re.sub(r'[^\x00-\x7F]+',' ', tweet) ##replace consecutive non-ASCII characters with a space
     tweet = emoji_pattern.sub(r'', tweet)
 
     tweet = word_tokenize(tweet) # remove repeated characters (helloooooooo into hello)
-    tweet=[word for word in tweet if word not in _stopwords and w not in emoticons]
+    tweet=[word for word in tweet if word not in _stopwords and word not in emoticons]
 
     tweet=' '.join(tweet)
     return tweet
@@ -178,6 +178,8 @@ def send_tweets_to_spark(http_resp, tcp_connection):
         except(ConnectionResetError, BrokenPipeError):
             print("Client disconnected ..")
             return
+        except(json.decoder.JSONDecodeError):
+            continue
         except:
             e = sys.exc_info()[0]
             print("Error: %s" % e)
@@ -204,6 +206,7 @@ def main():
     global twitterdb
     # nltk.download('stopwords')
     trend_var = argsStuff()
+    print(trend_var)
     TCP_IP = "localhost"
     TCP_PORT = 9999
     twitterdb=mongoclient['twitterdb']
